@@ -29,7 +29,7 @@ return new class extends Migration
 
             $table->timestamps();
 
-            $table->unique(['way_team_id', 'employee_id']);
+            $table->unique(['delivery_team_id', 'employee_id']);
         });
     }
 

@@ -14,11 +14,12 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             $table->foreignIdFor(Role::class)
+                ->nullable()
                 ->after('email')
                 ->constrained()
                 ->restrictOnDelete()
                 ->cascadeOnUpdate();
-                
+
             $table->boolean('is_active')
                 ->after('role_id')
                 ->default(true);
@@ -31,7 +32,8 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            //
+            $table->dropConstrainedForeignId('role_id');
+            $table->dropColumn('is_active');
         });
     }
 };
