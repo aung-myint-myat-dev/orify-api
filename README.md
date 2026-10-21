@@ -21,6 +21,23 @@ Laravel is a web application framework with expressive, elegant syntax. We belie
 
 Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
+## Authentication API
+
+All authentication endpoints are under `/api`. Successful responses include a `message`; registration and login also return a `data` object containing a user resource and a Sanctum bearer token. Validation failures use Laravel's JSON `422` response format.
+
+| Method | Endpoint | Authentication | Purpose |
+| --- | --- | --- | --- |
+| `POST` | `/api/register` | Public | Register with `name`, `email`, `password`, and `password_confirmation`; creates a user with the customer role and a customer profile, sends an email verification link, and returns a token. `role_id` is ignored; customer codes are generated sequentially. |
+| `POST` | `/api/login` | Public | Log in with `email` and `password`; returns a bearer token. |
+| `POST` | `/api/logout` | Bearer token | Revoke the current access token. |
+| `POST` | `/api/forgot-password` | Public | Request a reset link with `email`. The response does not disclose whether the account exists. |
+| `POST` | `/api/reset-password` | Public | Reset with `email`, `token`, `password`, and `password_confirmation`. |
+| `POST` | `/api/change-password` | Bearer token | Change with `current_password`, `password`, and `password_confirmation`; revokes all of the user's tokens. |
+| `GET` | `/api/email/verify/{id}/{hash}` | Signed link | Verify the email address using the signed link sent by email. |
+| `POST` | `/api/email/verification-notification` | Bearer token | Resend the verification email for an unverified account. |
+
+Send protected requests with `Authorization: Bearer <token>`. Registration requires the active `customer` role to exist (provided by `RoleSeeder`). Customer profiles are created without a phone number; `phone_number_1` is nullable. User and customer creation run in a single database transaction. Password-reset email links use `APP_URL` as their base and append `/reset-password?token=...&email=...`; the client application should handle that page and submit the reset form to `/api/reset-password`. Sensitive endpoints are rate-limited.
+
 ## Learning Laravel
 
 Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
