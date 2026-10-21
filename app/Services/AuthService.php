@@ -10,9 +10,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use LogicException;
+use Throwable;
 
 class AuthService
 {
+    private const DUMMY_PASSWORD_HASH = '$2y$12$v9FJgnTy5CIjXwDdNvFx.eLk/LI20CLQxGHPK8xC8AR6tlNZ1aSVm';
+
     public function __construct(
         private readonly AuthRepositoryInterface $authRepository,
         private readonly CustomerService $customerService,
@@ -37,11 +40,17 @@ class AuthService
             return $user;
         });
 
-        $user->sendEmailVerificationNotification();
+        $token = $this->authRepository->createToken($user, 'api')->plainTextToken;
+
+        try {
+            $user->sendEmailVerificationNotification();
+        } catch (Throwable $exception) {
+            report($exception);
+        }
 
         return [
             'user' => $user,
-            'token' => $this->authRepository->createToken($user, 'api')->plainTextToken,
+            'token' => $token,
         ];
     }
 
@@ -51,8 +60,9 @@ class AuthService
     public function login(string $email, string $password): ?array
     {
         $user = $this->authRepository->findByEmail($email);
+        $passwordMatches = Hash::check($password, $user?->password ?? self::DUMMY_PASSWORD_HASH);
 
-        if ($user === null || ! $user->is_active || ! Hash::check($password, $user->password)) {
+        if ($user === null || ! $user->is_active || ! $passwordMatches) {
             return null;
         }
 

@@ -55,13 +55,7 @@ class AuthController extends Controller
         ForgotPasswordRequest $request,
         AuthService $authService,
     ): JsonResponse {
-        $status = $authService->sendPasswordResetLink($request->validated('email'));
-
-        if ($status === Password::RESET_THROTTLED) {
-            return response()->json([
-                'message' => 'Please wait before requesting another password reset link.',
-            ], 429);
-        }
+        $authService->sendPasswordResetLink($request->validated('email'));
 
         return response()->json([
             'message' => 'If an account exists for that email address, a password reset link has been sent.',

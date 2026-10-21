@@ -11,7 +11,9 @@ use Illuminate\Auth\Events\Verified;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\URL;
@@ -30,7 +32,7 @@ class AuthApiTest extends TestCase
 
         $response = $this->postJson('/api/register', [
             'name' => 'Alex Example',
-            'email' => 'alex@example.com',
+            'email' => '  ALEX@Example.COM  ',
             'password' => 'password123',
             'password_confirmation' => 'password123',
             'role_id' => $adminRoleId,
@@ -46,6 +48,7 @@ class AuthApiTest extends TestCase
         $this->assertSame('customer', $user->role->name);
         $this->assertSame('CUS-00001', $user->customer->customer_code);
         $this->assertNull($user->customer->phone_number_1);
+        $this->assertSame('alex@example.com', $user->email);
         $this->assertDatabaseHas('personal_access_tokens', ['tokenable_id' => $user->id]);
         Notification::assertSentTo($user, VerifyEmail::class);
     }
@@ -123,12 +126,117 @@ class AuthApiTest extends TestCase
         Notification::assertNothingSent();
     }
 
+    public function test_registration_rejects_an_existing_email_with_different_case(): void
+    {
+        $this->seed(RoleSeeder::class);
+        User::factory()->create(['email' => 'alex@example.com']);
+
+        $this->postJson('/api/register', [
+            'name' => 'Alex Example',
+            'email' => ' ALEX@EXAMPLE.COM ',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('email');
+
+        $this->assertDatabaseCount('users', 1);
+    }
+
+    public function test_auth_requests_preserve_non_string_email_validation(): void
+    {
+        $this->postJson('/api/register', [
+            'name' => 'Alex Example',
+            'email' => ['alex@example.com'],
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('email');
+
+        $this->postJson('/api/login', [
+            'email' => ['alex@example.com'],
+            'password' => 'password123',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('email');
+
+        $this->postJson('/api/forgot-password', [
+            'email' => ['alex@example.com'],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('email');
+
+        $this->postJson('/api/reset-password', [
+            'email' => ['alex@example.com'],
+            'token' => 'token',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('email');
+    }
+
+    public function test_registration_returns_a_token_and_reports_verification_notification_failures(): void
+    {
+        $this->seed(RoleSeeder::class);
+        $failure = new RuntimeException('Mail transport failed.');
+        Exceptions::fake(RuntimeException::class);
+        Notification::shouldReceive('send')->once()->andThrow($failure);
+
+        $response = $this->postJson('/api/register', [
+            'name' => 'Alex Example',
+            'email' => 'alex@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonStructure(['data' => ['user', 'token']]);
+        $this->assertDatabaseCount('personal_access_tokens', 1);
+        Exceptions::assertReported(RuntimeException::class);
+    }
+
+    public function test_email_normalization_migration_backfills_users_and_password_reset_tokens(): void
+    {
+        $user = User::factory()->create(['email' => 'MIXED.Case@example.com']);
+        DB::table('password_reset_tokens')->insert([
+            'email' => 'MIXED.Case@example.com',
+            'token' => 'existing-token',
+            'created_at' => now(),
+        ]);
+        $migration = require database_path('migrations/2026_10_21_100110_normalize_existing_user_email_addresses.php');
+
+        $migration->up();
+
+        $this->assertSame('mixed.case@example.com', $user->fresh()->email);
+        $this->assertDatabaseHas('password_reset_tokens', [
+            'email' => 'mixed.case@example.com',
+            'token' => 'existing-token',
+        ]);
+    }
+
+    public function test_email_normalization_migration_refuses_case_insensitive_duplicates(): void
+    {
+        User::factory()->create(['email' => 'duplicate@example.com']);
+        User::factory()->create(['email' => 'DUPLICATE@example.com']);
+        $migration = require database_path('migrations/2026_10_21_100110_normalize_existing_user_email_addresses.php');
+
+        try {
+            $migration->up();
+            self::fail('Email normalization should reject case-insensitive duplicates.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame(
+                'Cannot normalize users emails while case-insensitive duplicate addresses exist.',
+                $exception->getMessage()
+            );
+        }
+
+        $this->assertDatabaseHas('users', ['email' => 'duplicate@example.com']);
+        $this->assertDatabaseHas('users', ['email' => 'DUPLICATE@example.com']);
+    }
+
     public function test_login_returns_a_token_for_an_active_user(): void
     {
         $user = User::factory()->create(['password' => 'password123']);
 
         $response = $this->postJson('/api/login', [
-            'email' => $user->email,
+            'email' => '  '.strtoupper($user->email).'  ',
             'password' => 'password123',
         ]);
 
@@ -162,6 +270,11 @@ class AuthApiTest extends TestCase
             'password' => 'wrong-password',
         ])->assertUnauthorized();
 
+        $this->postJson('/api/login', [
+            'email' => 'missing@example.com',
+            'password' => 'wrong-password',
+        ])->assertUnauthorized();
+
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
@@ -192,7 +305,9 @@ class AuthApiTest extends TestCase
         $user = User::factory()->create();
         Notification::fake();
 
-        $response = $this->postJson('/api/forgot-password', ['email' => $user->email]);
+        $response = $this->postJson('/api/forgot-password', [
+            'email' => '  '.strtoupper($user->email).'  ',
+        ]);
 
         $response->assertOk()
             ->assertJsonPath(
@@ -206,6 +321,10 @@ class AuthApiTest extends TestCase
         $this->assertSame($expectedUrl, $notification->toMail($user)->actionUrl);
 
         $this->postJson('/api/forgot-password', ['email' => 'unknown@example.com'])
+            ->assertOk()
+            ->assertJsonPath('message', $response->json('message'));
+
+        $this->postJson('/api/forgot-password', ['email' => $user->email])
             ->assertOk()
             ->assertJsonPath('message', $response->json('message'));
     }
@@ -224,7 +343,7 @@ class AuthApiTest extends TestCase
         $token = Password::createToken($user);
 
         $response = $this->postJson('/api/reset-password', [
-            'email' => $user->email,
+            'email' => '  '.strtoupper($user->email).'  ',
             'token' => $token,
             'password' => 'new-password123',
             'password_confirmation' => 'new-password123',
