@@ -6,6 +6,7 @@ use App\Contracts\AuthRepositoryInterface;
 use App\Models\User;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Auth\Events\Verified;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
@@ -70,6 +71,15 @@ class AuthService
             'user' => $user,
             'token' => $this->authRepository->createToken($user, 'api')->plainTextToken,
         ];
+    }
+
+    public function spaLogin(array $credentials, bool $rememberMe): bool
+    {
+        if (!Auth::guard('web')->attempt($credentials, $rememberMe)) {
+            return false;
+        }
+        request()->session()->regenerate();
+        return true;
     }
 
     public function logout(User $user): void

@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\AuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Password;
 
 class AuthController extends Controller
@@ -42,6 +43,23 @@ class AuthController extends Controller
         ]);
     }
 
+    public function spaLogin(LoginRequest $request, AuthService $authService): JsonResponse
+    {
+        $credentials = $request->safe()->only([ 'email', 'password', ]);
+        $rememberMe = $request->boolean('remember_me');
+
+        if (! $authService->spaLogin($credentials, $rememberMe)) {
+            return response()->json([
+                'email' => 'Invalid credentials.',
+            ], 401);
+        }
+
+        return response()->json([
+            'message' => 'Login successful.',
+            'data' => $this->authUser($request),
+        ], 200);
+    }
+
     public function logout(Request $request, AuthService $authService): JsonResponse
     {
         $authService->logout($request->user());
@@ -49,6 +67,17 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Logout successful.',
         ]);
+    }
+
+    public function spaLogout(Request $request): JsonResponse 
+    {
+        Auth::guard('web')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return response()->json([
+            'message' => 'Logout successfully.',
+        ], 200);
     }
 
     public function forgotPassword(
@@ -143,5 +172,15 @@ class AuthController extends Controller
             'user' => UserResource::make($user)->resolve($request),
             'token' => $token,
         ];
+    }
+
+    private function authUser(Request $request): array
+    {
+        /**
+         * @var User $user
+         */
+        $user = Auth::user();
+        
+        return UserResource::make($user->load('role'))->resolve($request);
     }
 }
