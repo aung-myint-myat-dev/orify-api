@@ -17,13 +17,16 @@ class Setting extends Model
         'value',
         'description',
         'updated_by',
+        'is_system',
     ];
 
     protected $casts = [
         'updated_by' => 'integer',
+        'is_system' => 'boolean',
     ];
 
     protected $attributes = [
+        'is_system' => true,
     ];
 
     public function updatedBy(): BelongsTo

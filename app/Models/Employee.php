@@ -46,6 +46,6 @@ class Employee extends Model
 
     public function position(): BelongsTo
     {
-        return $this->belongsTo(EmployeePosition::class);
+        return $this->belongsTo(EmployeePosition::class, 'employee_position_id');
     }
 }
