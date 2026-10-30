@@ -22,6 +22,9 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RoleSeeder::class,
             EmployeePositionSeeder::class,
+            PaymentMethodSeeder::class,
+            DeliveryTeamSeeder::class,
+            SettingSeeder::class,
         ]);
 
         // === ROLES IDS === //
@@ -67,5 +70,8 @@ class DatabaseSeeder extends Seeder
             ->create([
                 'role_id' => $employeeRoleId,
             ]);
+
+        $this->call(DeliveryTeamMemberSeeder::class);
+
     }
 }

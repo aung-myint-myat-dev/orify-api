@@ -18,7 +18,9 @@ class DeliveryTeamFactory extends Factory
     public function definition(): array
     {
         return [
-            //
+            'team_name' => fake()->name(),
+            'team_code' => 'DT-'.fake()->unique()->bothify('####'),
+            'description' => fake()->paragraphs(2, true),
         ];
     }
 }

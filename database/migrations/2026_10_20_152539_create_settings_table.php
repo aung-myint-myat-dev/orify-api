@@ -24,6 +24,8 @@ return new class extends Migration
                 ->constrained()
                 ->nullOnDelete();
 
+            $table->boolean('is_system')->default(true);
+
             $table->timestamps();
         });
     }
