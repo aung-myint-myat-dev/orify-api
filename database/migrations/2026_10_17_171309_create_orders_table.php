@@ -51,13 +51,6 @@ return new class extends Migration
             // e.g; 2 new empty bottle * 2000 mmk per empty bottle = 4000 mmk
             $table->decimal('new_empty_bottle_total_amount', 12, 2)->default(0);
 
-            // $table->unsignedInteger('returned_empty_bottle_quantity')->default(0);
-
-            // // may be 1000 per empty bottle for retrun
-            // $table->decimal('empty_bottle_return_unit_price', 12, 2)->default(0);
-            
-            // $table->decimal('empty_bottle_refund_amount', 12, 2)->default(0);
-
             // Order summary
             $table->decimal('subtotal', 12, 2);
             $table->decimal('delivery_fee', 12, 2)->default(0);
