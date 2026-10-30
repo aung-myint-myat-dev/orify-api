@@ -49,4 +49,25 @@ class User extends Authenticatable implements MustVerifyEmailContract
     {
         return $this->hasOne(Employee::class);
     }
+
+    // For Policies
+    public function isAdmin(): bool
+    {
+        return $this->role?->name === 'admin';
+    }
+
+    public function isCustomer(): bool
+    {
+        return $this->role?->name === 'customer';
+    }
+
+    public function isDeliveryStaff(): bool
+    {
+        return $this->employee?->position?->name === 'Delivery Staff';
+    }
+
+    public function isDriver(): bool
+    {
+        return $this->employee?->position?->name === 'Driver';
+    }
 }
